@@ -5,7 +5,7 @@ import {readGeneration} from './stream.mjs';
 const lanes=['openui','plain'];
 const examples=[['欧标插头','我想了解下欧标插头'],['复利计算','用一个能调本金和年利率的计算器，帮我理解复利。简单一点。'],['营收趋势','对比两家店三个月的营收：A店10、15、13万元，B店8、12、16万元，用合适的方式展示。'],['真实图片','给我一张水豚的真实照片，简单介绍。']];
 const seconds=n=>n==null?'—':`${(n/1000).toFixed(2)}s`;
-export function Compare({hidden,config,model,setModel,request,Reply,onAuthRequired,onBusy}){
+export function Compare({hidden,config,configError,onReconnect,model,setModel,request,Reply,onAuthRequired,onBusy}){
  const [input,setInput]=useState(''),[result,setResult]=useState(null),[busy,setBusy]=useState(false);
  const active=useRef(null),panels=useRef({}),follow=useRef({openui:true,plain:true});
  const auth=useRef(onAuthRequired),busyChange=useRef(onBusy);auth.current=onAuthRequired;busyChange.current=onBusy;
@@ -41,6 +41,8 @@ export function Compare({hidden,config,model,setModel,request,Reply,onAuthRequir
  return <main className="compare-page" hidden={hidden}>
   <div className="compare-intro"><div><span className="compare-eyebrow">FORMA / 对比试验台</span><h1>同一个问题，两种呈现。</h1><p>同一模型，同时回答。看看 OpenUI 带来了什么。</p></div><span className="compare-badge"><i/>双路流式</span></div>
   <div className="compare-controls">
+   {configError&&<div className="config-error" role="alert">{configError}<button onClick={onReconnect}>重新连接</button></div>}
+   {config&&!config.configured&&<div className="config-error">模型暂未配置，请联系演示维护者。</div>}
    <form onSubmit={e=>{e.preventDefault();send();}} className="compare-composer">
     <label className="sr-only" htmlFor="compare-prompt">对比问题</label><textarea id="compare-prompt" rows={2} maxLength={6000} value={input} disabled={busy} placeholder="输入一个问题，同时发送到两边…" onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();send();}}}/>
     <div className="compare-input-bottom"><label className="model-picker"><span className={`connection-dot ${config?.configured?'':'offline'}`}/><select aria-label="对比使用的模型" value={model} disabled={busy||!config} onChange={e=>setModel(e.target.value)}><option value="" disabled>连接模型…</option>{config?.models.map(m=><option key={m} value={m}>{m}</option>)}</select></label>
