@@ -10,7 +10,7 @@ async function imageData(image,fetcher,signal){
  // original display size. Avoid sending three full-size images to the model.
  const preview=new URL(image.url);
  if(preview.pathname.includes('/thumb/'))preview.pathname=preview.pathname.replace(/\/\d+px-([^/]+)$/, '/330px-$1');
- const response=await fetcher(preview.href,{redirect:'error',signal,headers:{Accept:'image/jpeg,image/png,image/webp','User-Agent':'Forma/1.0 image relevance check'}});
+ const response=await fetcher(preview.href,{redirect:'error',signal,headers:{Accept:'image/jpeg,image/png,image/webp','User-Agent':'Forma/1.0 (https://omoyx.github.io/forma-intelligent-ui/; image search demo)'}});
  const type=response.headers.get('content-type')?.split(';')[0];
  if(!response.ok||!types.has(type)||Number(response.headers.get('content-length'))>2000000){await response.body?.cancel();throw new ImageError('图片内容暂时无法检查，请重试。');}
  const reader=response.body.getReader(),chunks=[];let size=0;
