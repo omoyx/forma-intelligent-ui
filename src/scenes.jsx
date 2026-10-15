@@ -27,11 +27,16 @@ export function DonutView({props}){
 }
 export function DiagramView({props}){
  const [selected,setSelected]=useState(''),nodes=(props.nodes||[]).filter(n=>n?.id&&n?.label),edges=(props.edges||[]).filter(e=>e?.from&&e?.to),cols=props.direction==='horizontal'?Math.min(nodes.length,4):1;
- const positions=new Map(nodes.map((n,i)=>[n.id,{x:cols===1?155:15+i%cols*145,y:15+Math.floor(i/cols)*110}]));
- const width=cols===1?450:cols*145+15,height=Math.max(120,Math.ceil(nodes.length/Math.max(1,cols))*110);
+ const positions=new Map(nodes.map((n,i)=>[n.id,{x:cols===1?155:20+i%cols*190,y:45+Math.floor(i/cols)*120}]));
+ const width=cols===1?450:cols*190+5,height=Math.max(130,Math.ceil(nodes.length/Math.max(1,cols))*120+25);
  const marker=useId().replace(/:/g,'');
- return <div className="scene-diagram"><strong>{props.title}</strong><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={props.title}><defs><marker id={marker} markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#8a9e8b"/></marker></defs>
- {edges.map((e,i)=>{const a=positions.get(e.from),b=positions.get(e.to);if(!a||!b)return null;const x1=a.x+62,y1=a.y+48,x2=b.x+62,y2=b.y;return <g key={i}><path d={`M${x1} ${y1} C${x1} ${y1+25}, ${x2} ${y2-25}, ${x2} ${y2}`} fill="none" stroke="#8a9e8b" strokeWidth="1.5" markerEnd={`url(#${marker})`}/><text x={(x1+x2)/2+8} y={(y1+y2)/2+4}>{e.label}</text></g>;})}
+ return <div className="scene-diagram"><strong>{props.title}</strong><svg viewBox={`0 0 ${width} ${height}`} role="group" aria-label={props.title}><defs><marker id={marker} markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#8a9e8b"/></marker></defs>
+ {edges.map((e,i)=>{const a=positions.get(e.from),b=positions.get(e.to);if(!a||!b)return null;const sameRow=a.y===b.y,forward=b.x>a.x;
+ let path,lx,ly;
+ if(sameRow&&forward){const x1=a.x+125,y1=a.y+24,x2=b.x,y2=b.y+24;path=`M${x1} ${y1} C${x1+20} ${y1}, ${x2-20} ${y2}, ${x2} ${y2}`;lx=(x1+x2)/2;ly=y1-9;}
+ else if(sameRow){const x1=a.x+62,y1=a.y,x2=b.x+62,y2=b.y;path=`M${x1} ${y1} C${x1} ${y1-42}, ${x2} ${y2-42}, ${x2} ${y2}`;lx=(x1+x2)/2;ly=y1-29;}
+ else {const x1=a.x+62,y1=a.y+48,x2=b.x+62,y2=b.y;path=`M${x1} ${y1} C${x1} ${y1+25}, ${x2} ${y2-25}, ${x2} ${y2}`;lx=(x1+x2)/2+32;ly=(y1+y2)/2+4;}
+ return <g key={i}><path d={path} fill="none" stroke="#8a9e8b" strokeWidth="1.5" markerEnd={`url(#${marker})`}/><text x={lx} y={ly} textAnchor="middle">{e.label}</text></g>;})}
  {nodes.map(n=>{const p=positions.get(n.id);return <g key={n.id} tabIndex="0" role="button" aria-label={n.label} onClick={()=>setSelected(n.id)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelected(n.id);}}}><rect x={p.x} y={p.y} width="125" height="48" rx="10" fill={selected===n.id?'#deebdc':'#f4f7f1'} stroke="#b8cbb5"/><text x={p.x+62.5} y={p.y+29} textAnchor="middle">{n.label}</text></g>;})}</svg><p role="status">{nodes.find(n=>n.id===selected)?.detail||'点击节点查看说明'}</p></div>;
 }
 function clamp(v,input){return Math.min(input.max,Math.max(input.min,Number(v)));}
