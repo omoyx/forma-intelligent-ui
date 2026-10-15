@@ -4,12 +4,14 @@ import { Renderer } from '@openuidev/react-lang';
 import { library, InteractionContext } from './library.jsx';
 import { splitReply } from './reply.mjs';
 import { ImageContext } from './photos.jsx';
+import {PlaceContext} from './maps.jsx';
+import {DataContext} from './scenes.jsx';
 import { ArrowUp, Plus, Compass, Columns3, ChartNoAxesCombined, ListChecks, Copy } from 'lucide-react';
 
 const samples=[
- {icon:Compass,label:'安排一个周末',detail:'行程、预算，边聊边调整',prompt:'规划杭州两天一夜的旅行，每人预算1500元，不含往返交通。给我可切换的每日行程、预算滑杆、费用分配图和准备清单，节奏轻松。'},
- {icon:Columns3,label:'帮我做个选择',detail:'把不同方案放在一起比较',prompt:'预算一万元左右，对比 MacBook Air、MacBook Pro 和 Windows 轻薄本的日常编程用途，展示可选择的方案卡、可排序对比表和继续深入的按钮。标注价格为参考估算。'},
- {icon:ChartNoAxesCombined,label:'看懂一组数据',detail:'让数字变成直观的图表',prompt:'把咖啡店月营收做成交互看板：1月8.2万、2月7.4万、3月9.6万、4月10.8万、5月12.1万、6月13.5万元。展示总收入、月均收入、首末月增长率、图表和可排序数据表，提供后续分析入口。说明是用户提供的样例数据。'},
+ {icon:Compass,label:'看看地图',detail:'查找真实地点',prompt:'在地图上看看杭州断桥和灵隐寺，简单介绍。'},
+ {icon:Columns3,label:'查查天气',detail:'真实天气预报',prompt:'看看杭州最近三天的天气'},
+ {icon:ChartNoAxesCombined,label:'动手理解复利',detail:'调参数立即计算',prompt:'用一个能调本金、年利率和年数的计算器帮我理解复利，显示随年数变化的曲线。简单一点。'},
  {icon:ListChecks,label:'认识欧标插头',detail:'看懂类型与适配方式',prompt:'我想了解下欧标插头'}
 ];
 function Arrow(){return <ArrowUp size={20} strokeWidth={1.8}/>;}
@@ -30,9 +32,9 @@ function Reply({turn,busy,onAction,onValue}){
  const parts=splitReply(turn.code,turn.state==='streaming');
  return <div className="reply" data-state={turn.state}>
  <div className="assistant-label"><span className="assistant-logo">f</span><span>Forma</span>{turn.state==='streaming'&&<span className="live-label">正在回答<span className="live-dot"/></span>}</div>
- <div className="reply-content"><ImageContext.Provider value={searchImages}><InteractionContext.Provider value={{values:turn.values||{},update:(label,value)=>onValue(turn.id,label,value),busy}}>
+ <div className="reply-content"><PlaceContext.Provider value={searchPlaces}><DataContext.Provider value={searchData}><ImageContext.Provider value={searchImages}><InteractionContext.Provider value={{values:turn.values||{},update:(label,value)=>onValue(turn.id,label,value),busy}}>
  {parts.map((part,i)=>part.kind==='text'?<Prose text={part.content} key={i}/>:<div className="inline-ui" key={i} data-streaming={turn.state==='streaming'&&!part.complete}><RenderBoundary code={part.content}><Renderer library={library} response={part.content} isStreaming={turn.state==='streaming'&&!part.complete} onAction={event=>{if(event.type==='continue_conversation')onAction(event.humanFriendlyMessage||'根据我的选择继续。',turn.id);}}/></RenderBoundary></div>)}
- </InteractionContext.Provider></ImageContext.Provider>
+ </InteractionContext.Provider></ImageContext.Provider></DataContext.Provider></PlaceContext.Provider>
  {turn.state==='streaming'&&!turn.code&&<div className="thinking"><i/><i/><i/><span>{turn.status||'想一想…'}</span></div>}
  {turn.state==='streaming'&&!!turn.code&&<span className="stream-cursor" aria-label="正在流式输出"/>}
  {turn.state==='error'&&<div className="error-box" role="alert"><p>{turn.error}</p><button disabled={busy} onClick={()=>onAction(turn.prompt,turn.sourceId)}>重试生成 ↗</button></div>}
@@ -46,6 +48,9 @@ const API_BASE=__API_BASE__;
 const tokenKey=`forma-access:${API_BASE}`;
 function apiFetch(path,options={}){const token=sessionStorage.getItem(tokenKey);return fetch(`${API_BASE}${path}`,{...options,headers:{...options.headers,...(token?{Authorization:`Bearer ${token}`}:{})}});}
 async function searchImages(query,signal){const response=await apiFetch(`/api/images?query=${encodeURIComponent(query)}`,{signal});const data=await response.json();if(!response.ok)throw Error(response.status===401?'访问已过期，请刷新后重新输入密码。':data.error||'图片检索失败。');return data;}
+async function dataFetch(path,signal){const response=await apiFetch(path,{signal});const data=await response.json();if(!response.ok)throw Error(response.status===401?'访问已过期，请刷新后重新输入密码。':data.error||'查询失败。');return data;}
+const searchPlaces=(query,signal)=>dataFetch(`/api/places?query=${encodeURIComponent(query)}`,signal);
+const searchData=(kind,query,signal)=>dataFetch(`/api/data?kind=${encodeURIComponent(kind)}&query=${encodeURIComponent(query)}`,signal);
 function Login({onUnlock}){
  const [password,setPassword]=useState(''),[error,setError]=useState(''),[waiting,setWaiting]=useState(false);
  async function submit(e){e.preventDefault();setWaiting(true);setError('');try{

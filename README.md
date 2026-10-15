@@ -1,21 +1,87 @@
 # Forma · Intelligent UI
 
-A concise Chinese chat demo built with the official OpenUI SDK. Text and interactive cards render as the model streams them.
+中文流式对话 Demo：文字与可交互界面直接出现在同一条助手回复中，卡片、图表与控件随模型输出逐步展开。保留每轮回答，可以点选控件后继续对话。
 
-Live demo: https://omoyx.github.io/forma-intelligent-ui/
+使用 [OpenUI](https://www.openui.com/docs/getting-started) 官方 `@openuidev/react-lang` 1.0.1。模型生成文字与 OpenUI Lang 围栏，程序按顺序分段交给官方 `Renderer`；每段界面各有一个根节点。没有执行模型生成的 HTML 或 JavaScript。
 
-The website requires an access password. Authentication and model credentials remain on a separate server; no model API key or access password is included in this repository.
+线上体验：[GitHub Pages Demo](https://omoyx.github.io/forma-intelligent-ui/)，需要访问密码。模型代理运行在独立云端，详见 [部署说明](deploy/README.md)。
 
-## Development
+## 启动
 
-Node.js 22+, `npm ci`, `npm run build`, `npm start`.
+Node.js 20+，在 `work/` 执行：
 
-The server reads `HUOSHAN_BASE_URL` and `HUOSHAN_API_KEY` from the environment. Production also uses `DEMO_PASSWORD_HASH` (salt:scrypt-32-byte-hex), `DEMO_ALLOWED_ORIGIN`, and `PORT`. Frontend builds accept `INTELLIGENT_UI_API_BASE`; an empty value uses the current origin.
+```bash
+npm --prefix intelligent-ui ci
+npm --prefix intelligent-ui start
+```
 
-`docs/` contains the published GitHub Pages build. Keep credentials outside this repository. Dependencies are pinned to verified npmmirror package URLs.
+打开 **http://127.0.0.1:8780**，端口占用时自动顺延。启动时自动构建。网页脚本、字体和地图运行库不依赖外部 CDN；真实图片与地图瓦片按需从对应来源加载。
 
-## Real images
+依赖固定在独立的锁文件，`.npmrc` 使用 npmmirror 并禁用安装脚本。镜像实际重定向与完整性记录在 `task/014-intelligent-ui/mirror-verification.json`。安装失败时暂停检查镜像，不自动回退原站。
 
-`PhotoCard(query, caption)` and `PhotoGallery([namedCards])` retrieve reference images from Wikimedia Commons. The model supplies search keywords, not URLs. Cards load independently in the conversation and retain source, author and license, with retry and alternate-image controls. Try “给我 C 型和 F 型欧标插头的真实照片，简单说区别” or “水豚长什么样，给我一张真实照片”.
+## 模型
 
-The password-protected `/api/images` endpoint uses a fixed provider, trusted HTTPS image hosts, a 12-second timeout, bounded concurrency and a one-hour cache. Images load directly from Wikimedia; only search keywords go to Commons. Search results are visual references and are not semantically inspected by the model.
+服务端优先使用环境变量，再读取仓库根目录 `.env`，其次读取 `work/.env`：
+
+```dotenv
+HUOSHAN_BASE_URL=https://your-provider.example/v1
+HUOSHAN_API_KEY=your-key
+# 可选，默认沿用项目已验证的模型
+INTELLIGENT_UI_MODEL=deepseek-v4.1-flash
+```
+
+使用现有火山接口的 `/chat/completions` 流式协议，无需 OpenUI Gateway 密钥。页面可切换默认模型、deepseek-v4-pro、doubao-seed-2.1-pro、qwen3.8-flash。
+
+密钥仅在服务端读取，浏览器拿不到密钥和接口地址。服务仅监听本机回环地址。输入、对话上下文与所选偏好会发送给 `.env` 对应的模型服务。
+
+## 体验
+
+- 试试 **「我想了解下欧标插头」**：四张插头卡片按模型生成顺序独立出现，每张说明也实时增长。默认只用一句开场、简短卡片和一个追问，可选择类型后继续了解。示意图由受控的本地 SVG 组件绘制，明确标注非尺寸图。
+- 试试 **「给我 C 型和 F 型欧标插头的真实照片，简单说区别」** 或 **「水豚长什么样，给我一张真实照片」**：模型按需选择通用 `PhotoCard` / `PhotoGallery`，独立检索与加载，支持换图和重试，并保留来源、作者、许可。图片结果是外观参考，不经过逐图语义鉴定。
+- 也可选择旅行、方案比较、数据看板，或自由输入。普通问题可以只回复文字。
+- 每轮界面在原消息中保留，偏好按消息独立存储。更改选项后点击界面内继续按钮，或发送追问，会带上这轮的选择。
+- 滑杆和选项本地改变偏好；通过继续对话由模型应用。表格可排序、选项卡可切换、清单可勾选。
+- 停止生成立即结束请求、保留已显示的部分回答并恢复输入。结构错误自动校正一次，失败后可重试。
+- 阅读历史消息时不强制滚动到底部。桌面和手机使用同一条对话流。
+- 标签页 sessionStorage 保留最近 10 轮，模型使用最近 9 轮完整回答；刷新会保留记录，新对话清除记录。服务端不落盘保存对话。
+
+这是体验 Demo，支持真实图片、地点、天气、参考汇率、延迟行情与部分联赛赛程/比分查询；具体交互与数据边界见 [场景覆盖](SCENARIOS.md)。未连接支付或预订等外部执行工具。模型生成的知识内容仍可能有误。插头示意用于区分接地结构，不能代替产品说明、设备铭牌或当地规范；转换头不变压。
+
+插头组件参考：[Type C](https://www.worldstandards.eu/electricity/plugs-and-sockets/c/)、[Type E](https://www.worldstandards.eu/electricity/plugs-and-sockets/e/)、[Type F](https://www.worldstandards.eu/electricity/plugs-and-sockets/f/)。
+
+## 验证
+
+在 `work/` 执行：
+
+```bash
+npm --prefix intelligent-ui run build
+npm --prefix intelligent-ui test
+node intelligent-ui/test-images.mjs
+node intelligent-ui/test-auth.mjs
+node intelligent-ui/test-scenes.mjs
+node intelligent-ui/smoke-scenes.mjs # 需先启动；调用真实模型与数据源
+node intelligent-ui/smoke-images.mjs # 需先启动本地 Demo
+npm --prefix intelligent-ui run smoke
+npm --prefix intelligent-ui run smoke -- --europlug
+```
+
+`test` 使用本地模拟上游验证部分流渲染、混合分段、纯文字、修复、异常与取消，不消耗模型额度。`smoke` 使用真实模型验证旅行、多轮预算、比较和看板；`--europlug` 专测欧标插头。这些真实调用消耗模型额度。结果与浏览器截图保存在 `task/014-intelligent-ui/`。
+
+## 文件
+
+- `src/library.jsx`：组件库、共享模型提示词；`example` 仅是自动测试夹具。
+- `src/reply.mjs`：按生成顺序拆分文字和独立 OpenUI 围栏，支持不完整流。
+- `src/app.jsx`：对话、流式消费、每轮偏好、停止与历史记录。
+- `src/styles.css`：响应式聊天页面和组件。
+- `server.mjs`：`.env` 模型代理、SSE 转发、解析校验、单次修复与取消。
+- `build.mjs`：本地静态资源及服务端共享库构建。
+
+## 更多交互
+
+新增地图多标记、折线/面积/散点/占比、流程图、实时重算计算器、参数模拟、先答后揭晓测验、输入表单和来源卡片。天气、汇率、行情与体育卡片展示实际来源、日期和错误状态。组件会按需求选用，避免堆叠。详见 [场景与示例](SCENARIOS.md)。
+
+## 真实图片链路
+
+模型只给英文检索词和中文说明 → 已鉴权 `/api/images?query=...` → 固定 Wikimedia Commons API → 受信图片域名直载。组件不会执行模型提供的 URL，不代理任意网址。检索在服务端超时 12 秒，同词并发合并，缓存一小时、最多 100 词，最多 4 个上游请求。浏览器对尚在流式生成的关键词做短暂合并，卡片和文字仍立即渲染。
+
+图片不进入模型视觉上下文，模型不会看到搜索结果；它提供参考图，不能保证每张搜索结果都是精确型号。使用“换一张”查看其他结果，可点来源核对。检索词会发送给 Commons，图片加载会连接 Wikimedia 图片域名；只发送检索词，不发送对话历史。图库许可和署名保留在每张卡片下方。

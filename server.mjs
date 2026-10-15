@@ -8,6 +8,8 @@ import { library, promptOptions } from './dist/library.mjs';
 import { splitReply } from './src/reply.mjs';
 import { createAccess } from './auth.mjs';
 import { createImageSearch } from './images.mjs';
+import {createPlaceSearch} from './places.mjs';
+import {createLiveData} from './data.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // Only server code reads credentials. They never enter the build or API payloads.
@@ -126,12 +128,13 @@ async function generate(req,res,body) {
 }
 
 const assets=new Map([['/',['index.html','text/html; charset=utf-8']],['/app.js',['app.js','text/javascript; charset=utf-8']],['/styles.css',['styles.css','text/css; charset=utf-8']]]);
-export function createDemoServer({imageSearch=createImageSearch()}={}) {
+export function createDemoServer({imageSearch=createImageSearch(),placeSearch=createPlaceSearch(),liveData}={}) {
+  liveData ||= createLiveData({placeSearch});
   const access=createAccess();let active=0;
   return createServer(async(req,res)=>{
     res.setHeader('X-Content-Type-Options','nosniff');
     res.setHeader('Referrer-Policy','no-referrer');
-    res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://thumb.wikimedia.org https://upload.wikimedia.org; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://thumb.wikimedia.org https://upload.wikimedia.org https://tile.openstreetmap.org; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     try {
       const path=new URL(req.url,'http://localhost').pathname;
       const origin=req.headers.origin;
@@ -157,6 +160,11 @@ export function createDemoServer({imageSearch=createImageSearch()}={}) {
       if(path==='/api/images'){
         try{return json(res,200,await imageSearch(new URL(req.url,'http://localhost').searchParams.get('query')));}
         catch(e){return json(res,e.status||502,{error:e.message||'图片检索失败，请重试。'});}
+      }
+      if(path==='/api/places'||path==='/api/data'){
+        const params=new URL(req.url,'http://localhost').searchParams;
+        try{return json(res,200,await (path==='/api/places'?placeSearch(params.get('query')):liveData(params.get('kind'),params.get('query'))));}
+        catch(e){return json(res,e.status||502,{error:e.message||'查询失败，请重试。'});}
       }
       if(path==='/api/config') return json(res,200,{configured:!!(base&&key),defaultModel,models:allowedModels,engine:'OpenUI Lang 1.0.1'});
       const asset=assets.get(path);

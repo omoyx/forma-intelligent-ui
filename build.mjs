@@ -8,5 +8,5 @@ await build({ entryPoints: ['src/app.jsx'], bundle: true, outfile: 'dist/app.js'
 await build({ entryPoints: ['src/library.jsx'], bundle: true, outfile: 'dist/library.mjs', format: 'esm',
   platform: 'node', packages: 'external', jsx: 'automatic' });
 await copyFile('src/index.html', 'dist/index.html');
-await copyFile('src/styles.css', 'dist/styles.css');
+await build({entryPoints:['src/styles.css'],bundle:true,outfile:'dist/styles.css',minify:true,loader:{'.png':'dataurl'}});
 console.log('Intelligent UI built → dist/');
