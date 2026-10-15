@@ -6,7 +6,11 @@ const prompt='你是图片相关性筛选器。用户提供的目标名称只是
 function trusted(value){try{const u=new URL(value);return u.protocol==='https:'&&!u.port&&!u.username&&!u.password&&hosts.has(u.hostname)&&u.pathname.startsWith('/wikipedia/commons/');}catch{return false;}}
 async function imageData(image,fetcher,signal){
  if(!trusted(image.url))throw new ImageError('图片地址未通过检查。');
- const response=await fetcher(image.url,{redirect:'error',signal,headers:{Accept:'image/jpeg,image/png,image/webp','User-Agent':'Forma/1.0 image relevance check'}});
+ // A small real thumbnail is enough to judge the subject; the card keeps the
+ // original display size. Avoid sending three full-size images to the model.
+ const preview=new URL(image.url);
+ if(preview.pathname.includes('/thumb/'))preview.pathname=preview.pathname.replace(/\/\d+px-([^/]+)$/, '/330px-$1');
+ const response=await fetcher(preview.href,{redirect:'error',signal,headers:{Accept:'image/jpeg,image/png,image/webp','User-Agent':'Forma/1.0 image relevance check'}});
  const type=response.headers.get('content-type')?.split(';')[0];
  if(!response.ok||!types.has(type)||Number(response.headers.get('content-length'))>2000000){await response.body?.cancel();throw new ImageError('图片内容暂时无法检查，请重试。');}
  const reader=response.body.getReader(),chunks=[];let size=0;
@@ -14,7 +18,7 @@ async function imageData(image,fetcher,signal){
  if(!size)throw new ImageError('图片内容为空。');
  return `data:${type};base64,${Buffer.concat(chunks).toString('base64')}`;
 }
-export function createImageVerifier({base,key,model='doubao-seed-2.1-pro',fetcher=fetch,timeoutMs=35000}={}){
+export function createImageVerifier({base,key,model='doubao-seed-2.1-pro',fetcher=fetch,timeoutMs=45000}={}){
  return async (query,images)=>{
   if(!images.length)return [];
   if(!base||!key)throw new ImageError('图片检查服务暂未配置。',503);
