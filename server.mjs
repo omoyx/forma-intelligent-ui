@@ -7,6 +7,7 @@ import { createParser } from '@openuidev/react-lang';
 import { library, promptOptions } from './dist/library.mjs';
 import { splitReply } from './src/reply.mjs';
 import { createAccess } from './auth.mjs';
+import { createImageSearch } from './images.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // Only server code reads credentials. They never enter the build or API payloads.
@@ -125,12 +126,12 @@ async function generate(req,res,body) {
 }
 
 const assets=new Map([['/',['index.html','text/html; charset=utf-8']],['/app.js',['app.js','text/javascript; charset=utf-8']],['/styles.css',['styles.css','text/css; charset=utf-8']]]);
-export function createDemoServer() {
+export function createDemoServer({imageSearch=createImageSearch()}={}) {
   const access=createAccess();let active=0;
   return createServer(async(req,res)=>{
     res.setHeader('X-Content-Type-Options','nosniff');
     res.setHeader('Referrer-Policy','no-referrer');
-    res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://thumb.wikimedia.org https://upload.wikimedia.org; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     try {
       const path=new URL(req.url,'http://localhost').pathname;
       const origin=req.headers.origin;
@@ -153,6 +154,10 @@ export function createDemoServer() {
         try{return await generate(req,res,body);}finally{active--;}
       }
       if(req.method!=='GET') throw new RequestError('不支持此请求方式。',405);
+      if(path==='/api/images'){
+        try{return json(res,200,await imageSearch(new URL(req.url,'http://localhost').searchParams.get('query')));}
+        catch(e){return json(res,e.status||502,{error:e.message||'图片检索失败，请重试。'});}
+      }
       if(path==='/api/config') return json(res,200,{configured:!!(base&&key),defaultModel,models:allowedModels,engine:'OpenUI Lang 1.0.1'});
       const asset=assets.get(path);
       if(!asset) throw new RequestError('页面不存在。',404);

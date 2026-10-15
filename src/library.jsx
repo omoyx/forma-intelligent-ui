@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useId } from 'react';
 import { createLibrary, defineComponent, useTriggerAction } from '@openuidev/react-lang';
 import { z } from 'zod/v4';
+import { PhotoView } from './photos.jsx';
 
 // Same component definitions produce the model prompt and render its response.
 export const InteractionContext = createContext({ values: {}, update: () => {}, busy: false });
@@ -60,7 +61,9 @@ const PlugCard=defineComponent({name:'PlugCard',description:'One European plug c
  return <button type="button" data-plug-type={props.type} aria-pressed={value===props.type} className={`plug-card ${value===props.type?'selected':''}`} onClick={()=>setValue(props.type)}><PlugDrawing type={props.type}/><strong>{fact.name}</strong><small>{fact.standard}</small><p>{props.detail}</p><span>{value===props.type?'✓ 已选中':'进一步了解 →'}</span></button>;
 }});
 const PlugGallery=defineComponent({name:'PlugGallery',description:'Progressive gallery of independently streamed PlugCard references. Define this gallery before the named card statements. Never inline all cards in a single expression.',props:z.object({cards:z.array(PlugCard.ref)}),component:({props,renderNode})=><div className="plug-types"><div className="plug-caption">插头正面示意 · 非尺寸图</div><div className="plug-grid">{renderNode(props.cards)}</div></div>});
-const leaf=[Text,Notice,Metrics,Timeline,BarChart,Checklist,Slider,Options,Comparison,DataTable,FollowUp,PlugTypes,PlugGallery,PlugCard];
+const PhotoCard=defineComponent({name:'PhotoCard',description:'Search Wikimedia Commons for a real reference photograph. query is a precise English subject keyword (not a URL); caption is a short Chinese label. Supply query first. Loading, actual image, source and license are provided automatically. Search may return no result; do not claim you verified the image or rely on it for safety-critical identification.',props:z.object({query:z.string(),caption:z.string()}),component:PhotoView});
+const PhotoGallery=defineComponent({name:'PhotoGallery',description:'Gallery of independently streamed named PhotoCard references. Usually one or two photos are enough. Define the gallery first, then each card on a separate line.',props:z.object({cards:z.array(PhotoCard.ref)}),component:({props,renderNode})=><div className="photo-gallery">{renderNode(props.cards)}</div>});
+const leaf=[Text,Notice,Metrics,Timeline,BarChart,Checklist,Slider,Options,Comparison,DataTable,FollowUp,PlugTypes,PlugGallery,PlugCard,PhotoCard,PhotoGallery];
 const children=z.array(z.union(leaf.map(c=>c.ref)));
 const Section = defineComponent({ name:'Section', description:'A bordered panel with heading, optionally tinted. Contains leaf components.',
   props:z.object({title:z.string(),children,tinted:z.boolean().optional()}),
@@ -95,9 +98,11 @@ export const promptOptions={
     '围绕实际需求自由组合组件，不能总套旅行模板。默认简短，直接回答当前问题，不延伸成百科文章。简单科普只需一句开场、一个直观界面和一个简短追问；不要附加表格、指标、清单、长篇注意事项或重复总结，用户追问后再展开。通常 1—2 个主要模块，不超过 20 个语句。Workspace 的 title/description 通常填空字符串，解释写在围栏外的自然语言里，避免界面内重复大标题。',
     '界面代码只使用库中已有的组件。禁止 HTML、JSX、JavaScript、Query、Mutation 或链接。只允许 openui-lang 代码围栏。',
     '计划类可用 Tabs + Timeline，比较类用 Comparison + DataTable，数据分析用 Metrics + BarChart + DataTable。按需加入一个有意义的交互控件和 FollowUp；不要每次都加预算或通用偏好面板，不强制网格布局。',
-    '没有联网或外部数据工具。无法得知实时天气、库存或价格。旅行费用必须标注估算；自行编造的数据必须用 Notice 清楚标为演示数据。不要声称已预订、支付、发送、查询或执行外部动作。',
+    'PhotoCard 可按检索词实时检索 Wikimedia Commons 参考图片，来源/作者/许可由组件展示，不用你编写。其他组件没有外部数据工具，无法得知实时天气、库存或价格。旅行费用必须标注估算；自行编造的数据必须用 Notice 清楚标为演示数据。不要声称已预订、支付、发送或执行外部动作。',
+    '用户想看真实外观、实物照片，或动物、植物、景点等适合照片的内容时，用 PhotoCard 或 PhotoGallery。图片必须通过组件检索，不要编造网址，不把绘图称作实拍。query 用简短准确的英文实体词（如 Type C Europlug、Schuko plug、Capybara），不要加网址或检索语法；caption 用中文，一般一至两张即可。示例：root = Workspace("", "", [photos])；photos = PhotoGallery([c, f])；c = PhotoCard("Type C Europlug", "C 型 · 两根细圆脚")；f = PhotoCard("Schuko plug", "F 型 · 两侧接地触点")。每条语句单独成行。图片异步检索，可能失败或不完全匹配；不要声称已经看过检索结果、逐图认证类型或保证安全适配。讲解结构或精确触点时可选用插头示意组件。',
     '遵循追问和界面偏好，保留尚未要求改变的内容。Slider 只改变界面偏好值，必须配一个 FollowUp 把新偏好用于重新生成，不要声称移动滑杆会自动更新模型内容。',
-    '关于欧洲插头：必须用 PlugGallery + 独立的 PlugCard 展示 C/E/F/EF，不再使用旧的 PlugTypes。顺序示例：root = Workspace("", "", [plugs, next])；plugs = PlugGallery([c, e, f, ef])；然后逐行 c = PlugCard("C", "此处生成约20—35字的针对性说明")、e = PlugCard("E", "...")、f = PlugCard("F", "...")、ef = PlugCard("EF", "...")，最后定义 next。每张卡片的说明由你实时生成，严格控制在20—35个汉字，只写一句关键区别，不重复卡片已有的名称和标准编号，不能省略或只写类型代号。一般认识插头的请求仅输出四卡片，末尾仅用一句自然语言问目的地或设备，不要再总结卡片内容，不加 Options、表格、清单或长篇提醒；需要适配判断时再展开。区分插头与插座标准：E 插头 CEE 7/6、E 插座 CEE 7/5；F 插头 CEE 7/4、F 插座 CEE 7/3。旧式纯 E/F 插头不能笼统保证互插或保护接地，不要断言纯 E 一定插不进 F，避免将物理插入与接地兼容混为一谈；现代常见 CEE 7/7 同时具备两种接地结构。用一两句解释这个区别即可。Type C Europlug CEE 7/16 通常 2.5A，适合双重绝缘小功率设备；欧洲还有 G/J/L/K 等，英国常用 G，不能说欧洲通用。转换头不变压，须核对设备铭牌电压/频率与额定电流，需接地设备必须保留保护接地。不能按设备名称或功率断定保护类别：I 类需接地，II 类双重绝缘不依靠保护接地；不可说所有吹风机/电水壶必须接地，也不可说所有笔记本充电器可以用无地 Type C。高功率双重绝缘设备也不能用额定 2.5A 的 Europlug。',
+    '关于欧洲插头：用户要实物/真实照片时优先使用 PhotoGallery + PhotoCard，只展示所问类型；一般认识类型或讲解触点结构时用 PlugGallery + 独立的 PlugCard 展示 C/E/F/EF，不再使用旧的 PlugTypes。顺序示例：root = Workspace("", "", [plugs, next])；plugs = PlugGallery([c, e, f, ef])；然后逐行 c = PlugCard("C", "此处生成约20—35字的针对性说明")、e = PlugCard("E", "...")、f = PlugCard("F", "...")、ef = PlugCard("EF", "...")，最后定义 next。每张卡片的说明由你实时生成，严格控制在20—35个汉字，只写一句关键区别，不重复卡片已有的名称和标准编号，不能省略或只写类型代号。一般认识插头的请求仅输出四卡片，末尾仅用一句自然语言问目的地或设备，不要再总结卡片内容，不加 Options、表格、清单或长篇提醒；需要适配判断时再展开。区分插头与插座标准：E 插头 CEE 7/6、E 插座 CEE 7/5；F 插头 CEE 7/4、F 插座 CEE 7/3。旧式纯 E/F 插头不能笼统保证互插或保护接地，不要断言纯 E 一定插不进 F，避免将物理插入与接地兼容混为一谈；现代常见 CEE 7/7 同时具备两种接地结构。用一两句解释这个区别即可。Type C Europlug CEE 7/16 通常 2.5A，适合双重绝缘小功率设备；欧洲还有 G/J/L/K 等，英国常用 G，不能说欧洲通用。转换头不变压，须核对设备铭牌电压/频率与额定电流，需接地设备必须保留保护接地。不能按设备名称或功率断定保护类别：I 类需接地，II 类双重绝缘不依靠保护接地；不可说所有吹风机/电水壶必须接地，也不可说所有笔记本充电器可以用无地 Type C。高功率双重绝缘设备也不能用额定 2.5A 的 Europlug。',
+    '照片类回答保持极简：一句开场加图片；若用户问区别，末尾只补一句关键区别，围栏外总计不超过80个汉字。不重复图片下方已有的来源和许可，不主动附加设备建议、追问或长篇免责声明。',
     '组件参数按库中位置顺序填写；字符串用双引号、JSON对象键可用引号。数组对象必须满足全部字段。'
   ],
   examples:[`可以。先看这六个月的核心数字，再看每个月的变化。\n\n\`\`\`openui-lang\nroot = Workspace("", "", [metrics, chart])\nmetrics = Metrics([{label:"总营收",value:"61.6 万",note:"用户提供的六个月数据"},{label:"月均营收",value:"10.27 万",note:"简单平均"},{label:"首末月增长",value:"64.63%",note:"1 月至 6 月"}])\nchart = BarChart("月度营收", "万元", [{label:"1月",value:8.2},{label:"2月",value:7.4},{label:"3月",value:9.6},{label:"4月",value:10.8},{label:"5月",value:12.1},{label:"6月",value:13.5}])\n\`\`\`\n\n2 月短暂回落，之后连续四个月增长。你可以选择接下来关注的方向。\n\n\`\`\`openui-lang\nroot = Workspace("", "", [focus, next])\nfocus = Options("关注方向", ["营收趋势", "成本与利润", "下半年预测"], "营收趋势")\nnext = FollowUp("继续分析", "根据我选择的方向继续分析，缺少的数据请明确说明。")\n\`\`\``]

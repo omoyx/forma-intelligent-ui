@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { Renderer } from '@openuidev/react-lang';
 import { library, InteractionContext } from './library.jsx';
 import { splitReply } from './reply.mjs';
+import { ImageContext } from './photos.jsx';
 import { ArrowUp, Plus, Compass, Columns3, ChartNoAxesCombined, ListChecks, Copy } from 'lucide-react';
 
 const samples=[
@@ -29,9 +30,9 @@ function Reply({turn,busy,onAction,onValue}){
  const parts=splitReply(turn.code,turn.state==='streaming');
  return <div className="reply" data-state={turn.state}>
  <div className="assistant-label"><span className="assistant-logo">f</span><span>Forma</span>{turn.state==='streaming'&&<span className="live-label">正在回答<span className="live-dot"/></span>}</div>
- <div className="reply-content"><InteractionContext.Provider value={{values:turn.values||{},update:(label,value)=>onValue(turn.id,label,value),busy}}>
+ <div className="reply-content"><ImageContext.Provider value={searchImages}><InteractionContext.Provider value={{values:turn.values||{},update:(label,value)=>onValue(turn.id,label,value),busy}}>
  {parts.map((part,i)=>part.kind==='text'?<Prose text={part.content} key={i}/>:<div className="inline-ui" key={i} data-streaming={turn.state==='streaming'&&!part.complete}><RenderBoundary code={part.content}><Renderer library={library} response={part.content} isStreaming={turn.state==='streaming'&&!part.complete} onAction={event=>{if(event.type==='continue_conversation')onAction(event.humanFriendlyMessage||'根据我的选择继续。',turn.id);}}/></RenderBoundary></div>)}
- </InteractionContext.Provider>
+ </InteractionContext.Provider></ImageContext.Provider>
  {turn.state==='streaming'&&!turn.code&&<div className="thinking"><i/><i/><i/><span>{turn.status||'想一想…'}</span></div>}
  {turn.state==='streaming'&&!!turn.code&&<span className="stream-cursor" aria-label="正在流式输出"/>}
  {turn.state==='error'&&<div className="error-box" role="alert"><p>{turn.error}</p><button disabled={busy} onClick={()=>onAction(turn.prompt,turn.sourceId)}>重试生成 ↗</button></div>}
@@ -44,6 +45,7 @@ const saved=readSession();
 const API_BASE=__API_BASE__;
 const tokenKey=`forma-access:${API_BASE}`;
 function apiFetch(path,options={}){const token=sessionStorage.getItem(tokenKey);return fetch(`${API_BASE}${path}`,{...options,headers:{...options.headers,...(token?{Authorization:`Bearer ${token}`}:{})}});}
+async function searchImages(query,signal){const response=await apiFetch(`/api/images?query=${encodeURIComponent(query)}`,{signal});const data=await response.json();if(!response.ok)throw Error(response.status===401?'访问已过期，请刷新后重新输入密码。':data.error||'图片检索失败。');return data;}
 function Login({onUnlock}){
  const [password,setPassword]=useState(''),[error,setError]=useState(''),[waiting,setWaiting]=useState(false);
  async function submit(e){e.preventDefault();setWaiting(true);setError('');try{

@@ -1604,3 +1604,21 @@ textarea::placeholder {
 .access-card button { margin-top:16px; border:0; border-radius:12px; background:#294735; color:#fff; padding:14px; font:inherit; cursor:pointer; }
 .access-card button:disabled { opacity:.5; cursor:default; }
 .access-card [role=alert] { margin-top:12px; font-size:13px; color:#a74735; }
+
+.photo-gallery { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.photo-gallery:has(> :only-child) { grid-template-columns:minmax(0,1fr); max-width:460px; }
+.photo-card { margin:0; min-width:0; border:1px solid #e1e6e0; border-radius:14px; overflow:hidden; background:#fff; }
+.photo-frame { aspect-ratio:4/3; position:relative; background:#f1f4ef; }
+.photo-frame > a { display:block; width:100%; height:100%; }
+.photo-frame img { display:block; width:100%; height:100%; object-fit:contain; opacity:0; transition:opacity .2s ease; }
+.photo-frame img.loaded { opacity:1; }
+.photo-placeholder { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:12px; padding:16px; text-align:center; color:#788476; font-size:12px; }
+.photo-card figcaption { padding:13px 14px 14px; }
+.photo-card figcaption > strong { display:block; font-size:13px; font-weight:500; line-height:1.6; }
+.photo-credit { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:10px; }
+.photo-card a { color:inherit; }
+.photo-credit a { color:#60755f; font-size:10px; text-decoration:none; }
+.photo-card small { display:block; margin-top:5px; font-size:10px; line-height:1.5; color:#899183; overflow-wrap:anywhere; }
+.photo-card button { border:0; padding:3px; background:none; color:#60755f; font:inherit; font-size:11px; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
+.photo-placeholder button { padding:5px 10px; }
+@media(prefers-reduced-motion:reduce) { .photo-frame img { transition:none; } }
