@@ -8,9 +8,8 @@
   },
   "scripts": {
     "build": "node build.mjs",
-    "start": "node build.mjs && node server.mjs",
-    "test": "node test.mjs",
-    "smoke": "node smoke.mjs"
+    "build:server": "node deploy/build-server.mjs",
+    "start": "node build.mjs && node server.mjs"
   },
   "dependencies": {
     "@openuidev/react-lang": "1.0.1",
