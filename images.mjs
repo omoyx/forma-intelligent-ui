@@ -26,15 +26,15 @@ export function extractImages(data){
 }
 export function createImageSearch({fetcher=fetch,timeoutMs=12000,now=Date.now}={}){
   const cache=new Map(),pending=new Map();let active=0;
-  return async value=>{
-    const query=normalizeQuery(value),key=query.toLowerCase();
+  return async (value,{matchTitle=false}={})=>{
+    const query=normalizeQuery(value),key=`${matchTitle?'title:':'full:'}${query.toLowerCase()}`;
     if(cache.get(key)?.expires>now())return cache.get(key).data;
     if(pending.has(key))return pending.get(key);
     if(active>=4)throw new ImageError('图片检索繁忙，请稍后重试。',429);
     const job=(async()=>{
       active++;
       try{
-        const url=new URL(endpoint);url.search=new URLSearchParams({action:'query',format:'json',generator:'search',gsrsearch:`${query} filetype:bitmap`,gsrnamespace:'6',gsrlimit:'10',prop:'imageinfo',iiprop:'url|extmetadata|mime|size',iiurlwidth:'700',maxlag:'5'});
+        const url=new URL(endpoint);url.search=new URLSearchParams({action:'query',format:'json',generator:'search',gsrsearch:`${matchTitle?`intitle:"${query}"`:query} filetype:bitmap`,gsrnamespace:'6',gsrlimit:'10',prop:'imageinfo',iiprop:'url|extmetadata|mime|size',iiurlwidth:'700',maxlag:'5'});
         const response=await fetcher(url,{headers:{'User-Agent':agent,Accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(timeoutMs)});
         if(!response.ok||!response.headers.get('content-type')?.includes('application/json'))throw new ImageError('图片源暂时不可用，请稍后重试。');
         const data=await response.json();if(data.error)throw new ImageError('图片源暂时繁忙，请稍后重试。');

@@ -160,7 +160,8 @@ export function createDemoServer({imageSearch=createImageSearch(),placeSearch=cr
       }
       if(req.method!=='GET') throw new RequestError('不支持此请求方式。',405);
       if(path==='/api/images'){
-        try{return json(res,200,await imageSearch(new URL(req.url,'http://localhost').searchParams.get('query')));}
+        const params=new URL(req.url,'http://localhost').searchParams;
+        try{return json(res,200,await imageSearch(params.get('query'),{matchTitle:params.get('match')==='title'}));}
         catch(e){return json(res,e.status||502,{error:e.message||'图片检索失败，请重试。'});}
       }
       if(path==='/api/places'||path==='/api/data'){

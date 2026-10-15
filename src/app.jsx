@@ -52,7 +52,7 @@ const saved=readSession();
 const API_BASE=__API_BASE__;
 const tokenKey=`forma-access:${API_BASE}`;
 function apiFetch(path,options={}){const token=sessionStorage.getItem(tokenKey);return fetch(`${API_BASE}${path}`,{...options,headers:{...options.headers,...(token?{Authorization:`Bearer ${token}`}:{})}});}
-async function searchImages(query,signal){const response=await apiFetch(`/api/images?query=${encodeURIComponent(query)}`,{signal});const data=await response.json();if(!response.ok)throw Error(response.status===401?'访问已过期，请刷新后重新输入密码。':data.error||'图片检索失败。');return data;}
+async function searchImages(query,signal,{matchTitle=false}={}){const response=await apiFetch(`/api/images?query=${encodeURIComponent(query)}${matchTitle?'&match=title':''}`,{signal});const data=await response.json();if(!response.ok)throw Error(response.status===401?'访问已过期，请刷新后重新输入密码。':data.error||'图片检索失败。');return data;}
 async function dataFetch(path,signal){const response=await apiFetch(path,{signal});const data=await response.json();if(!response.ok)throw Error(response.status===401?'访问已过期，请刷新后重新输入密码。':data.error||'查询失败。');return data;}
 const searchPlaces=(query,signal)=>dataFetch(`/api/places?query=${encodeURIComponent(query)}`,signal);
 const searchData=(kind,query,signal)=>dataFetch(`/api/data?kind=${encodeURIComponent(kind)}&query=${encodeURIComponent(query)}`,signal);

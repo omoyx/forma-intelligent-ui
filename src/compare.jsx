@@ -3,7 +3,7 @@ import {ArrowUp,RotateCcw,Square,Trash2} from 'lucide-react';
 import {readGeneration} from './stream.mjs';
 
 const lanes=['openui','plain'];
-const examples=[['欧标插头','我想了解下欧标插头'],['复利计算','用一个能调本金和年利率的计算器，帮我理解复利。简单一点。'],['营收趋势','对比两家店三个月的营收：A店10、15、13万元，B店8、12、16万元，用合适的方式展示。'],['真实图片','给我一张水豚的真实照片，简单介绍。']];
+const examples=[['欧标插头','我想了解下欧标插头'],['复利计算','用一个能调本金和年利率的计算器，帮我理解复利。简单一点。'],['营收趋势','对比两家店三个月的营收：A店10、15、13万元，B店8、12、16万元，用合适的方式展示。'],['美食推荐','推荐三道成都特色美食，简单说说。']];
 const seconds=n=>n==null?'—':`${(n/1000).toFixed(2)}s`;
 export function Compare({hidden,config,configError,onReconnect,model,setModel,request,Reply,onAuthRequired,onBusy}){
  const [input,setInput]=useState(''),[result,setResult]=useState(null),[busy,setBusy]=useState(false);
