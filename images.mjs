@@ -24,7 +24,7 @@ export function extractImages(data){
       licenseURL:trustedURL(meta.LicenseUrl?.value,['creativecommons.org'],'/')||undefined}];
   }).slice(0,3);
 }
-export function createImageSearch({fetcher=fetch,timeoutMs=12000,now=Date.now}={}){
+export function createImageSearch({fetcher=fetch,timeoutMs=12000,now=Date.now,verifyImages}={}){
   const cache=new Map(),pending=new Map();let active=0;
   return async (value,{matchTitle=false}={})=>{
     const query=normalizeQuery(value),key=`${matchTitle?'title:':'full:'}${query.toLowerCase()}`;
@@ -38,9 +38,11 @@ export function createImageSearch({fetcher=fetch,timeoutMs=12000,now=Date.now}={
         const response=await fetcher(url,{headers:{'User-Agent':agent,Accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(timeoutMs)});
         if(!response.ok||!response.headers.get('content-type')?.includes('application/json'))throw new ImageError('图片源暂时不可用，请稍后重试。');
         const data=await response.json();if(data.error)throw new ImageError('图片源暂时繁忙，请稍后重试。');
-        const result={query,images:extractImages(data),provider:'Wikimedia Commons'};
+        const candidates=extractImages(data);
+        const images=verifyImages?await verifyImages(query,candidates):candidates;
+        const result={query,images,provider:'Wikimedia Commons',...(verifyImages?{verification:'visual'}:{})};
         if(cache.size>=100)cache.delete(cache.keys().next().value);
-        cache.set(key,{data:result,expires:now()+3600000});return result;
+        cache.set(key,{data:result,expires:now()+(images.length?3600000:300000)});return result;
       }catch(e){if(e instanceof ImageError)throw e;throw new ImageError('图片检索未完成，请重试。');}
       finally{active--;}
     })();

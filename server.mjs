@@ -8,6 +8,7 @@ import { library, promptOptions } from './dist/library.mjs';
 import { splitReply } from './src/reply.mjs';
 import { createAccess } from './auth.mjs';
 import { createImageSearch } from './images.mjs';
+import {createImageVerifier} from './image-verifier.mjs';
 import {createPlaceSearch} from './places.mjs';
 import {createLiveData} from './data.mjs';
 
@@ -130,7 +131,7 @@ async function generate(req,res,body) {
 }
 
 const assets=new Map([['/',['index.html','text/html; charset=utf-8']],['/app.js',['app.js','text/javascript; charset=utf-8']],['/styles.css',['styles.css','text/css; charset=utf-8']]]);
-export function createDemoServer({imageSearch=createImageSearch(),placeSearch=createPlaceSearch(),liveData}={}) {
+export function createDemoServer({imageSearch=createImageSearch({verifyImages:createImageVerifier({base,key,model:process.env.INTELLIGENT_UI_VISION_MODEL||'doubao-seed-2.1-pro'})}),placeSearch=createPlaceSearch(),liveData}={}) {
   liveData ||= createLiveData({placeSearch});
   const access=createAccess();let active=0;
   return createServer(async(req,res)=>{

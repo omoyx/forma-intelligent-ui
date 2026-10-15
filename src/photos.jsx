@@ -16,11 +16,11 @@ export function PhotoView({props}){
   const image=result?.images?.[index];
   function next(){setLoaded(false);setFailed(false);setIndex(n=>(n+1)%result.images.length);}
   const retry=()=>{setLoaded(false);setFailed(false);setAttempt(n=>n+1);};
-  const problem=error||(result&&!image?'暂未找到匹配的实拍图片。':failed?'这张图片未能加载。':'');
+  const problem=error||(result&&!image?'暂未找到可确认匹配的照片。':failed?'这张图片未能加载。':'');
   return <figure className={`photo-card${props.recommendation?' visual-card':''}`} data-image-query={query}>
     <div className="photo-frame" aria-busy={!loaded&&!problem}>
       {image&&!failed&&<a href={image.source} target="_blank" rel="noopener noreferrer" aria-label={`查看图片来源：${image.title}`}><img key={image.url} src={image.url} alt={image.title} referrerPolicy="no-referrer" decoding="async" onLoad={()=>setLoaded(true)} onError={()=>setFailed(true)} className={loaded?'loaded':''}/></a>}
-      {(!loaded||problem)&&<div className="photo-placeholder" role="status">{problem||'正在寻找真实图片…'}{problem&&<div><button type="button" onClick={retry}>重试</button>{result?.images?.length>1&&<button type="button" onClick={next}>换一张</button>}</div>}</div>}
+      {(!loaded||problem)&&<div className="photo-placeholder" role="status">{problem||'正在查找并检查图片…'}{problem&&<div><button type="button" onClick={retry}>重试</button>{result?.images?.length>1&&<button type="button" onClick={next}>换一张</button>}</div>}</div>}
     </div>
     <figcaption><strong>{props.caption||query}</strong>{props.summary&&<p className="visual-summary">{props.summary}</p>}{props.meta&&<span className="visual-meta">{props.meta}</span>}{props.recommendation&&<span className="visual-reference">参考图片 · 以来源为准</span>}{image&&<><div className="photo-credit"><a href={image.source} target="_blank" rel="noopener noreferrer">Wikimedia Commons ↗</a>{result.images.length>1&&<button type="button" onClick={next} aria-label={`换一张${props.caption||query}图片`}>换一张</button>}</div><small>{image.author} · {image.licenseURL?<a href={image.licenseURL} target="_blank" rel="noopener noreferrer">{image.license}</a>:image.license}</small></>}</figcaption>
   </figure>;
