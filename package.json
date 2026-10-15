@@ -1,0 +1,25 @@
+{
+  "name": "ai-os-intelligent-ui",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node build.mjs && node server.mjs",
+    "test": "node test.mjs",
+    "smoke": "node smoke.mjs"
+  },
+  "dependencies": {
+    "@openuidev/react-lang": "1.0.1",
+    "lucide-react": "0.468.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.5"
+  }
+}
