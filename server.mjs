@@ -26,6 +26,7 @@ const defaultModel = process.env.INTELLIGENT_UI_MODEL || 'deepseek-v4.1-flash';
 const allowedModels = [...new Set([defaultModel, 'deepseek-v4-pro', 'doubao-seed-2.1-pro', 'qwen3.8-flash'])];
 const parser = createParser(library.toJSONSchema(), library.root);
 const systemPrompt = library.prompt(promptOptions);
+export const plainSystemPrompt = '你是一个中文对话助手。使用简体中文，自然、准确、简短地回答当前问题，用户追问后再展开。默认总计不超过200个汉字，不主动扩展话题或重复总结，可以用普通 Markdown 表格、列表和代码表达。你没有联网搜索、图片检索、地图或实时数据工具；无法核实的信息请明确说明，不编造实时数据、来源或已执行的动作。';
 const json = (res, status, data) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); };
 class RequestError extends Error { constructor(message, status=400) { super(message); this.status=status; } }
 
@@ -38,14 +39,15 @@ async function readBody(req) {
   try { return JSON.parse(body); } catch { throw new RequestError('请求格式错误。'); }
 }
 function validateRequest(body) {
-  const {messages, model=defaultModel} = body || {};
+  const {messages, model=defaultModel, mode='openui'} = body || {};
+  if(!['openui','plain'].includes(mode))throw new RequestError('请选择有效的回答模式。');
   if (!allowedModels.includes(model)) throw new RequestError('请选择列表中的模型。');
   if (!Array.isArray(messages) || !messages.length || messages.length>21 || messages.length%2!==1) throw new RequestError('请发送有效对话，最多保留 10 轮上下文。');
   const clean = messages.map((m,i)=>{
     if (m?.role !== (i%2===0?'user':'assistant') || typeof m.content!=='string' || !m.content.trim() || m.content.length>45000) throw new RequestError('消息为空或过长，请缩短后重试。');
     return {role:m.role,content:m.content};
   });
-  return {messages:clean,model};
+  return {messages:clean,model,mode};
 }
 export function validateProgram(code) {
   const parts=splitReply(code),issues=[];let statementCount=0;
@@ -61,11 +63,11 @@ export function validateProgram(code) {
   if(!parts.length)issues.push('回复为空。');
   return {result:{meta:{statementCount}},issues};
 }
-async function modelStream(messages,model,signal,onDelta) {
+async function modelStream(messages,model,signal,onDelta,prompt=systemPrompt) {
   const response=await fetch(`${base}/chat/completions`,{
     method:'POST',redirect:'error',signal,
     headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},
-    body:JSON.stringify({model,messages:[{role:'system',content:systemPrompt},...messages],stream:true,temperature:0.4,max_tokens:7000,enable_thinking:false})
+    body:JSON.stringify({model,messages:[{role:'system',content:prompt},...messages],stream:true,temperature:0.4,max_tokens:7000,enable_thinking:false})
   });
   if(!response.ok) { await response.body?.cancel(); throw new Error(response.status===429?'模型请求较多，请稍后再试。':`模型接口返回 ${response.status}，请检查模型配置。`); }
   const reader=response.body.getReader(), decoder=new TextDecoder();
@@ -98,7 +100,7 @@ async function modelStream(messages,model,signal,onDelta) {
   return code.trim();
 }
 async function generate(req,res,body) {
-  const {messages,model}=validateRequest(body);
+  const {messages,model,mode}=validateRequest(body);
   if(!base || !key) throw new RequestError('请在仓库根目录 .env 配置 HUOSHAN_BASE_URL 和 HUOSHAN_API_KEY。',503);
   const controller=new AbortController(), timer=setTimeout(()=>controller.abort(new Error('timeout')),150000);
   const abort=()=>controller.abort();
@@ -109,9 +111,9 @@ async function generate(req,res,body) {
   const start=Date.now();let firstTokenMs=null;
   const heartbeat=setInterval(()=>{if(!res.destroyed)res.write(': keepalive\n\n');},15000);
   try {
-    emit('meta',{model});
-    let code=await modelStream(messages,model,controller.signal,text=>{firstTokenMs??=Date.now()-start;emit('delta',{text});});
-    let {result,issues}=validateProgram(code),repaired=false;
+    emit('meta',{model,mode,systemPromptChars:(mode==='plain'?plainSystemPrompt:systemPrompt).length});
+    let code=await modelStream(messages,model,controller.signal,text=>{firstTokenMs??=Date.now()-start;emit('delta',{text,firstTokenMs});},mode==='plain'?plainSystemPrompt:systemPrompt);
+    let {result,issues}=mode==='plain'?{result:{meta:{statementCount:0}},issues:[]}:validateProgram(code),repaired=false;
     if(issues.length) {
       emit('status',{message:'正在校正界面结构…'});
       emit('reset',{});
@@ -119,7 +121,7 @@ async function generate(req,res,body) {
       ({result,issues}=validateProgram(code));repaired=true;
     }
     if(issues.length) throw new Error('生成的界面结构未通过校验，请重试或换一个模型。');
-    emit('done',{code,model,ms:Date.now()-start,firstTokenMs,statements:result.meta.statementCount,repaired});
+    emit('done',{code,model,mode,ms:Date.now()-start,firstTokenMs,statements:result.meta.statementCount,repaired});
   } catch(e) {
     if(!res.destroyed) emit('error',{message:controller.signal.aborted?'生成已超时，请缩短需求后重试。':e.message || '生成失败，请重试。'});
   } finally {

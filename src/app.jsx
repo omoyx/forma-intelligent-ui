@@ -6,6 +6,8 @@ import { splitReply } from './reply.mjs';
 import { ImageContext } from './photos.jsx';
 import {PlaceContext} from './maps.jsx';
 import {DataContext} from './scenes.jsx';
+import {Compare} from './compare.jsx';
+import {readGeneration} from './stream.mjs';
 import { ArrowUp, Plus, Compass, Columns3, ChartNoAxesCombined, ListChecks, Copy } from 'lucide-react';
 
 const samples=[
@@ -21,15 +23,18 @@ class RenderBoundary extends Component {
  render(){return this.state.error?<p className="render-problem">这个界面暂时无法显示，可以继续对话重新生成。</p>:this.props.children;}
 }
 // Text is React content, never executable model HTML.
-function Prose({text}){return <div className="prose">{text.trim().split(/\n\s*\n/).map((p,i)=>{
+function Prose({text}){return <div className="prose">{text.split(/(```[\s\S]*?(?:```|$))/g).map((part,i)=>part.startsWith('```')?<pre key={i}><code>{part.replace(/^```[^\n]*\n?/,'').replace(/```$/,'')}</code></pre>:<ProseParagraphs key={i} text={part}/>)}</div>;}
+function ProseParagraphs({text}){return <>{text.trim().split(/\n\s*\n/).filter(Boolean).map((p,i)=>{
  const lines=p.split('\n');const inline=s=>s.split(/(\*\*[^*]+(?:\*\*|$)|`[^`]+(?:`|$))/g).map((v,j)=>v.startsWith('**')?<strong key={j}>{v.endsWith('**')?v.slice(2,-2):v.slice(2)}</strong>:v.startsWith('`')?<code key={j}>{v.endsWith('`')?v.slice(1,-1):v.slice(1)}</code>:v);
+ const cells=line=>line.trim().replace(/^\|/,'').replace(/\|$/,'').split('|').map(cell=>cell.trim());
+ if(lines.length>1&&lines[0].includes('|')&&cells(lines[1]).every(cell=>/^:?-{3,}:?$/.test(cell))){const headings=cells(lines[0]);return <div className="prose-table" key={i}><table><thead><tr>{headings.map((cell,j)=><th key={j}>{inline(cell)}</th>)}</tr></thead><tbody>{lines.slice(2).map((line,j)=><tr key={j}>{cells(line).map((cell,k)=><td key={k}>{inline(cell)}</td>)}</tr>)}</tbody></table></div>;}
  if(lines.every(l=>/^\s*[-*]\s+/.test(l)))return <ul key={i}>{lines.map((l,j)=><li key={j}>{inline(l.replace(/^\s*[-*]\s+/,''))}</li>)}</ul>;
  if(lines.every(l=>/^\s*\d+[.)]\s+/.test(l)))return <ol key={i}>{lines.map((l,j)=><li key={j}>{inline(l.replace(/^\s*\d+[.)]\s+/,''))}</li>)}</ol>;
  if(/^#{1,3} /.test(p))return <h3 key={i}>{inline(p.replace(/^#{1,3} /,''))}</h3>;
  return <p key={i}>{lines.map((l,j)=><React.Fragment key={j}>{j>0&&<br/>}{inline(l)}</React.Fragment>)}</p>;
- })}</div>;}
+ })}</>;}
 function Reply({turn,busy,onAction,onValue}){
- const parts=splitReply(turn.code,turn.state==='streaming');
+ const parts=turn.mode==='plain'?[{kind:'text',content:turn.code}]:splitReply(turn.code,turn.state==='streaming');
  return <div className="reply" data-state={turn.state}>
  <div className="assistant-label"><span className="assistant-logo">f</span><span>Forma</span>{turn.state==='streaming'&&<span className="live-label">正在回答<span className="live-dot"/></span>}</div>
  <div className="reply-content"><PlaceContext.Provider value={searchPlaces}><DataContext.Provider value={searchData}><ImageContext.Provider value={searchImages}><InteractionContext.Provider value={{values:turn.values||{},update:(label,value)=>onValue(turn.id,label,value),busy}}>
@@ -63,9 +68,11 @@ function App(){
  const [turns,setTurns]=useState(saved.turns),[model,setModel]=useState(saved.model),[config,setConfig]=useState(null),[configError,setConfigError]=useState('');
  const [input,setInput]=useState(''),[busy,setBusy]=useState(false),[selectedSource,setSelectedSource]=useState(null);
  const [locked,setLocked]=useState(false);
+ const [view,setView]=useState(location.hash==='#compare'?'compare':'chat'),[compareBusy,setCompareBusy]=useState(false);
  const request=useRef(null),scroll=useRef(null),follow=useRef(true),textarea=useRef(null);
  function connect(){setConfigError('');apiFetch('/api/config').then(async r=>{if(r.status===401){setLocked(true);return;}if(!r.ok)throw Error();const c=await r.json();setLocked(false);setConfig(c);setModel(m=>c.models.includes(m)?m:c.defaultModel);}).catch(()=>setConfigError('连接失败，请稍后重试。'));}
  useEffect(()=>{connect();return()=>request.current?.controller.abort();},[]);
+ useEffect(()=>{const change=()=>{if(!request.current&&!compareBusy)setView(location.hash==='#compare'?'compare':'chat');};window.addEventListener('hashchange',change);change();return()=>window.removeEventListener('hashchange',change);},[compareBusy]);
  useEffect(()=>{try{sessionStorage.setItem('forma-chat-v2',JSON.stringify({turns:turns.slice(-10),model}));}catch{}},[turns,model]);
  useEffect(()=>{if(follow.current&&scroll.current)scroll.current.scrollTop=scroll.current.scrollHeight;},[turns]);
  const source=turns.find(t=>t.id===selectedSource)||turns.at(-1);
@@ -86,19 +93,14 @@ function App(){
   try{
    const response=await apiFetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,messages}),signal:controller.signal});
    if(response.status===401){sessionStorage.removeItem(tokenKey);setLocked(true);}
-   if(!response.ok){const data=await response.json();throw Error(data.error||'生成失败，请重试。');}
-   const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='';
-   const consume=block=>{
+   await readGeneration(response,(type,data)=>{
     if(request.current!==active)return;
-    const type=block.match(/^event: (.+)$/m)?.[1],raw=block.match(/^data: (.+)$/m)?.[1];if(!raw)return;
-    const data=JSON.parse(raw);
     if(type==='delta'){code+=data.text;update({code});}
     if(type==='reset'){code='';update({code,status:'正在校正界面…'});}
     if(type==='status')update({status:data.message});
     if(type==='error')throw Error(data.message);
     if(type==='done'){completed=true;update({...data,state:'done'});}
-   };
-   try{while(request.current===active){const {value,done}=await reader.read();buffer+=decoder.decode(value,{stream:!done});const blocks=buffer.split(/\r?\n\r?\n/);buffer=blocks.pop()||'';blocks.forEach(consume);if(done){if(buffer.trim())consume(buffer);break;}}}finally{reader.releaseLock();}
+   });
    if(!completed&&request.current===active)throw Error('连接提前结束，请重试。');
   }catch(e){if(request.current===active)update({state:'error',error:e.message||'网络异常，请重试。'});}
   finally{if(request.current===active){request.current=null;setBusy(false);}}
@@ -106,9 +108,10 @@ function App(){
  function stop(){const active=request.current;if(!active)return;request.current=null;active.controller.abort();setBusy(false);setTurns(all=>all.map(t=>t.id===active.id?{...t,state:'stopped'}:t));setInput(active.prompt);textarea.current?.focus();}
  function newChat(){if(request.current)return;setTurns([]);setInput('');setSelectedSource(null);follow.current=true;textarea.current?.focus();}
  if(locked)return <Login onUnlock={connect}/>;
- return <div className="app"><aside className="rail"><button className="brand" onClick={newChat} disabled={busy} aria-label="Forma 首页">f<span/></button><button className="new-chat" onClick={newChat} disabled={busy} aria-label="新对话" title="新对话"><Plus size={20}/></button><div className="rail-caption">想法<br/>有形</div><div className="avatar">A</div></aside>
- <div className="main-shell"><header className="topbar"><div className="wordmark">forma <span>Intelligent UI</span></div><a href="https://www.openui.com" target="_blank" rel="noreferrer">Built with OpenUI <span>↗</span></a></header>
- <main className={`chat ${turns.length?'has-messages':''}`}><div className="chat-scroll" ref={scroll} onScroll={()=>{const el=scroll.current;follow.current=el.scrollHeight-el.scrollTop-el.clientHeight<100;}}><div className="thread">
+ return <div className="app"><aside className="rail"><button className="brand" onClick={()=>{newChat();location.hash='';}} disabled={busy||compareBusy} aria-label="Forma 首页">f<span/></button><button className="new-chat" onClick={()=>{newChat();location.hash='';}} disabled={busy||compareBusy} aria-label="新对话" title="新对话"><Plus size={20}/></button><div className="rail-caption">想法<br/>有形</div><div className="avatar">A</div></aside>
+ <div className="main-shell"><header className="topbar"><div className="wordmark">forma <span>Intelligent UI</span></div><nav className="view-switch" aria-label="体验模式"><button aria-current={view==='chat'?'page':undefined} disabled={busy||compareBusy} onClick={()=>{location.hash='';}}>对话</button><button aria-current={view==='compare'?'page':undefined} disabled={busy||compareBusy} onClick={()=>{location.hash='compare';}}>对比试验台</button></nav><a className="openui-credit" href="https://www.openui.com" target="_blank" rel="noreferrer">Built with OpenUI <span>↗</span></a></header>
+ <Compare hidden={view!=='compare'} config={config} model={model} setModel={setModel} request={apiFetch} Reply={Reply} onAuthRequired={()=>{sessionStorage.removeItem(tokenKey);setLocked(true);}} onBusy={setCompareBusy}/>
+ <main hidden={view!=='chat'} className={`chat ${turns.length?'has-messages':''}`}><div className="chat-scroll" ref={scroll} onScroll={()=>{const el=scroll.current;follow.current=el.scrollHeight-el.scrollTop-el.clientHeight<100;}}><div className="thread">
  {!turns.length&&<section className="welcome"><h1>今天，想一起做点什么？</h1><div className="suggestions">{samples.map(s=><button key={s.label} disabled={!config?.configured} onClick={()=>send(s.prompt,null)}><span className="sample-icon"><s.icon size={21} strokeWidth={1.5}/></span><strong>{s.label}</strong><span className="sample-arrow">↗</span></button>)}</div></section>}
  {turns.map(t=><section className="turn" key={t.id}><div className="user-row"><div className="user-message">{t.prompt}</div></div><Reply turn={t} busy={busy} onAction={send} onValue={updateValue}/></section>)}
  </div></div>

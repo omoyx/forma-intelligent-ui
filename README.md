@@ -6,6 +6,14 @@
 
 线上体验：[GitHub Pages Demo](https://omoyx.github.io/forma-intelligent-ui/)，需要访问密码。模型代理运行在独立云端，详见 [部署说明](deploy/README.md)。
 
+## 对比试验台
+
+[直接进入对比](https://omoyx.github.io/forma-intelligent-ui/#compare)，也可点击顶部“对比试验台”。输入一次问题，会同时向同一个模型发起两个独立流式请求：A 使用完整 OpenUI 提示词和交互组件，B 使用简短中文助手提示词，仅普通 Markdown 回答。两侧模型、问题和生成参数相同，每次不带历史，避免两侧回答互相影响。支持统一停止、切换模型后再次对比和清空；原对话记录独立保留。
+
+两侧显示服务端首字/总生成耗时与原始输出字符数（含 A 侧界面描述，不是 token 数，也不是最终界面字数）。OpenUI 组件另可检索真实图片、地点等，B 无查询工具，因此这是完整体验对比；提示词长度、内容规则及数据能力均有差异，不能单独据此判断模型质量或 OpenUI 的纯解析开销。点击界面中的继续按钮会将问题及选择放入共同输入框，确认后两侧再发送；不自动执行外部操作。结果只保留在当前页面内，刷新后重置。
+
+服务端 `/api/generate` 新增可选 `mode: "openui" | "plain"`，默认 openui。plain 不做界面解析和结构修复，鉴权、限额、超时及取消规则与原模式一致。
+
 ## 启动
 
 Node.js 20+，在 `work/` 执行：
@@ -59,6 +67,7 @@ npm --prefix intelligent-ui test
 node intelligent-ui/test-images.mjs
 node intelligent-ui/test-auth.mjs
 node intelligent-ui/test-scenes.mjs
+node intelligent-ui/test-compare.mjs
 node intelligent-ui/smoke-scenes.mjs # 需先启动；调用真实模型与数据源
 node intelligent-ui/smoke-images.mjs # 需先启动本地 Demo
 npm --prefix intelligent-ui run smoke
@@ -72,6 +81,7 @@ npm --prefix intelligent-ui run smoke -- --europlug
 - `src/library.jsx`：组件库、共享模型提示词；`example` 仅是自动测试夹具。
 - `src/reply.mjs`：按生成顺序拆分文字和独立 OpenUI 围栏，支持不完整流。
 - `src/app.jsx`：对话、流式消费、每轮偏好、停止与历史记录。
+- `src/compare.jsx`：同题双路对比页；`src/stream.mjs`：共享 SSE 读取。
 - `src/styles.css`：响应式聊天页面和组件。
 - `server.mjs`：`.env` 模型代理、SSE 转发、解析校验、单次修复与取消。
 - `build.mjs`：本地静态资源及服务端共享库构建。
